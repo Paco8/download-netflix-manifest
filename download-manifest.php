@@ -1,6 +1,6 @@
 <?php
 class MSL {
-	public $identity = 'NFCDFF-LX-B51FA2F86E09D904FC67BAAA29CE3D';  // Random ESN
+	public $identity = 'NFCDCH-LX-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 	public $private_key;
 	public $public_key;
 	public $encription_key;
@@ -8,6 +8,7 @@ class MSL {
 	public $session_str;
 	public $credentials = array();
 	public $user_id = '';
+	public $cookie = '';
 
 	function create_keys() {
 		$filename = __DIR__ .'/msl_pk.pem';
@@ -37,8 +38,9 @@ class MSL {
 		    'method'  => 'POST',
 		    'header'  => "User-Agent: $user_agent\r\n" .
 		                 "Content-type: text/plain\r\n".
+		                 //"Cookie: ". $this->cookie ."\r\n".
 		                 "Host: www.netflix.com\r\n".
-		                 //"Referer: https://www.netflix.com\r\n".
+		                 "Referer: https://www.netflix.com\r\n".
 		                 "Accept: */*\r\n" .
 		                 //"Accept-Encoding: gzip, deflate, br\r\n".
 		                 "Connection: close\r\n" .
@@ -49,7 +51,7 @@ class MSL {
 		);
 
 		//$url = 'https://www.netflix.com/nq/msl_v1/cadmium/pbo_manifests/%5E1.0.0/router?reqAttempt=1&reqPriority=0&reqName=manifest';
-		$url = 'https://www.netflix.com/msl/playapi/cadmium/licensedmanifest?reqAttempt=1&reqName=licensedManifest&clienttype=akira&uiversion=ve916f907&browsername=chrome&browserversion=107.0.0.0&osname=linux&osversion=0.0.0';
+		$url = 'https://www.netflix.com/msl/playapi/cadmium/licensedmanifest/1?reqAttempt=1&reqName=licensedManifest&clienttype=akira&uiversion=ve916f907&browsername=chrome&browserversion=107.0.0.0&osname=linux&osversion=0.0.0';
 
 		$context  = stream_context_create($opts);
 		$result = file_get_contents($url, false, $context);
@@ -68,6 +70,13 @@ class MSL {
 
 
 	function request_handshake() {
+		echo "Handshake: ESN: ". $this->identity ."\n";
+		$cache_filename = __DIR__ .'/'. $this->identity . '_handshake.json';
+		if (file_exists($cache_filename)) {
+			$res = file_get_contents($cache_filename);
+			return $res;
+		}
+
 		$messageid = mt_rand();
 
 		$header = '{"messageid":'. $messageid .',"renewable":true,'.
@@ -83,6 +92,7 @@ class MSL {
            '{"payload":"'. base64_encode($payload) .'","signature":""}';
 
 		$res = $this->post($env);
+		file_put_contents($cache_filename, $res);
 		return $res;
 	}
 
@@ -114,95 +124,99 @@ class MSL {
 
 		$iv = $this->generate_iv();
 
-		$data = array(
-			"url" => "licensedManifest",
-			"echo" => "",
-			"id" => mt_rand(),
-			"languages" => array("es-ES"),
-			"version" => 2,
-
-			"params" => array(
-				"licenseType" => "limited",
-				"drmType" => "widevine",
-				"isBranching" => false,
-				"desiredSegmentVmaf" => "plus_lts",
-				
-				"profileGroups" => array(array(
-					"name" => "default",
-					"profiles" => array(
-						"heaac-2-dash",
-						"heaac-2hq-dash",
-						"BIF240",
-						"BIF320",
-						"playready-h264mpl30-dash",
-						"playready-h264mpl31-dash",
-						"playready-h264mpl40-dash",
-						"playready-h264hpl30-dash",
-						"playready-h264hpl31-dash",
-						"playready-h264hpl40-dash",
-						"webvtt-lssdh-ios8",
-						"ddplus-2.0-dash",
-						"ddplus-5.1-dash",
-						"ddplus-5.1hq-dash",
-						"ddplus-atmos-dash"))),
-				
-				"flavor" => "PRE_FETCH",
-				"supportsWatermark" => true,
-				"uiVersion" => "shakti-ve916f907",
-				"clientVersion" => "6.0038.181.911",
-
-				"videoOutputInfo" => array(array(
-					"type" => "DigitalVideoOutputDescriptor",
-					"outputType" => "unknown",
-					"supportedHdcpVersions" => array("1.4"),
-					"isHdcpEngaged" => true)),
-
-				"viewableId" => $title_id,
-				"uiPlatform" => "SHAKTI",
-				"type" => "standard",
-				"isNonMember" => false,
-				"contentPlaygraph" => array(),
-				"showAllSubDubTracks" => false,
-				"usePsshBox" => true,
-				"supportsPartialHydration" => false,
-				"desiredVmaf" => "plus_lts",
-				"isUIAutoPlay" => false,
-				"preferAssistiveAudio" => false,
-				"manifestVersion" => "v2",
-				"profiles" => array(
-					"heaac-2-dash",
-					"heaac-2hq-dash",
-					"BIF240",
-					"BIF320",
-					"playready-h264mpl30-dash",
-					"playready-h264mpl31-dash",
-					"playready-h264mpl40-dash",
-					"playready-h264hpl30-dash",
-					"playready-h264hpl31-dash",
-					"playready-h264hpl40-dash",
-					"webvtt-lssdh-ios8",
-					"ddplus-2.0-dash",
-					"ddplus-5.1-dash",
-					"ddplus-5.1hq-dash",
-					"ddplus-atmos-dash",
-					//"vp9-profile0-L30-dash-cenc",
-					//"vp9-profile0-L31-dash-cenc",
-					"dfxp-ls-sdh",
-					"simplesdh",
-					//"nflx-cmisc",
-					),
-				"imageSubtitleHeight" => 1080,
-				"supportsPreReleasePin" => true,
-				"drmVersion" => 25,
-				"supportsUnequalizedDownloadables" => true,
-				"requestSegmentVmaf" => false,
-				"titleSpecificData" => array(
-					 $title_id => array(
-						"unletterboxed" => true)
-				),
-				"useHttpsStreams" => true,
-			),
-		);
+        $data = [
+            "version" => 2,
+            "url" => "licensedManifest",
+            "id" => intval(microtime(true)*100000000),
+            "languages" => ["es-ES"],
+            "params" => [
+                "type" => "standard",
+                "manifestVersion" => "v2",
+                "viewableId" => $title_id,
+                "profiles" => [
+                    "heaac-2-dash",
+                    "heaac-2hq-dash",
+                    "playready-h264mpl30-dash",
+                    "playready-h264mpl31-dash",
+                    "playready-h264mpl40-dash",
+                    "playready-h264hpl30-dash",
+                    "playready-h264hpl31-dash",
+                    "playready-h264hpl40-dash",
+                    "h264hpl30-dash-playready-live",
+                    "h264hpl31-dash-playready-live",
+                    //"vp9-profile0-L30-dash-cenc",
+                    //"vp9-profile0-L31-dash-cenc",
+                    "dfxp-ls-sdh",
+                    "simplesdh",
+                    "nflx-cmisc",
+                    "imsc1.1",
+                    "BIF240",
+                    "BIF320",
+                ],
+                "flavor" => "PRE_FETCH",
+                "drmType" => "widevine",
+                "drmVersion" => 25,
+                "usePsshBox" => true,
+                "isBranching" => false,
+                "useHttpsStreams" => true,
+                "supportsUnequalizedDownloadables" => true,
+                "imageSubtitleHeight" => 720,
+                "uiVersion" => "shakti-vf9f926cd",
+                "uiPlatform" => "SHAKTI",
+                "clientVersion" => "6.0038.217.911",
+                "platform" => "106.0.0",
+                "osVersion" => "0.0.0",
+                "osName" => "linux",
+                "supportsPreReleasePin" => true,
+                "supportsWatermark" => true,
+                "videoOutputInfo" => [
+                    [
+                        "type" => "DigitalVideoOutputDescriptor",
+                        "outputType" => "unknown",
+                        "supportedHdcpVersions" => [],
+                        "isHdcpEngaged" => false,
+                    ],
+                ],
+                "titleSpecificData" => [$title_id => ["unletterboxed" => false]],
+                "preferAssistiveAudio" => false,
+                "isUIAutoPlay" => false,
+                "isNonMember" => false,
+                "desiredVmaf" => "plus_lts",
+                "desiredSegmentVmaf" => "plus_lts",
+                "requestSegmentVmaf" => false,
+                "supportsPartialHydration" => true,
+                "contentPlaygraph" => ["start"],
+                "liveMetadataFormat" => "INDEXED_SEGMENT_TEMPLATE",
+                "useBetterTextUrls" => true,
+                "profileGroups" => [
+                    [
+                        "name" => "default",
+                        "profiles" => [
+                            "heaac-2-dash",
+                            "heaac-2hq-dash",
+                            "playready-h264mpl30-dash",
+                            "playready-h264mpl31-dash",
+                            "playready-h264mpl40-dash",
+                            "playready-h264hpl30-dash",
+                            "playready-h264hpl31-dash",
+                            "playready-h264hpl40-dash",
+                            "h264hpl30-dash-playready-live",
+                            "h264hpl31-dash-playready-live",
+                            //"vp9-profile0-L30-dash-cenc",
+                            //"vp9-profile0-L31-dash-cenc",
+                            "dfxp-ls-sdh",
+                            "simplesdh",
+                            "nflx-cmisc",
+                            "imsc1.1",
+                            "BIF240",
+                            "BIF320",
+                        ],
+                    ],
+                ],
+                "licenseType" => "limited",
+                "xid" => intval(microtime(true)*100000000),
+            ],
+        ];
 
 
 		$message = json_encode($data, JSON_UNESCAPED_SLASHES);
@@ -321,7 +335,7 @@ class MSL {
 
 
 	function save_session() {
-		$filename = __DIR__ .'/session.json';
+		$filename = __DIR__ .'/'. $this->identity .'_session.json';
 		$r['session'] = $this->session_str;
 		$r['encryption_key'] = $this->encryption_key;
 		$r['hmac_key'] = $this->hmac_key;
@@ -329,7 +343,7 @@ class MSL {
 	}
 
 	function load_session() {
-		$filename = __DIR__ .'/session.json';
+		$filename = __DIR__ .'/'. $this->identity .'_session.json';
 		if (file_exists($filename)) {
 			$r = json_decode(file_get_contents($filename), true);
 			$this->session_str = $r['session'];
@@ -365,7 +379,7 @@ class MSL {
 		echo "Creating keys...\n";
 		$this->create_keys();
 
-		//$this->load_session();
+		$this->load_session();
 		if ($this->is_session_valid()) {
 			return true;
 		} else {
@@ -391,6 +405,7 @@ class MSL {
 			file_put_contents('manifest.json', $res['manifest']);
 
 			$d = json_decode($res['manifest'], true);
+			echo "ESN  : ". $this->identity ."\n";
 			echo "Video resolution:\n";
 			foreach($d['result']['video_tracks'] as $t) {
 				foreach($t['streams'] as $st) {
